@@ -2,7 +2,8 @@ define([
     'i18n!nls/bundle',
     'app/vis/transition',
     'd3',
-    'jquery'
+    'jquery',
+    'raphael'
 ], function(i18n, Transition) { return function Sunburst(el, opts) {
     this.resize = resize;
     var chartEl = $(el).css('position', 'relative');
