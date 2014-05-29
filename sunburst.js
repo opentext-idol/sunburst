@@ -4,182 +4,189 @@ define([
     'd3',
     'jquery',
     'raphael'
-], function(i18n, Transition) { return function Sunburst(el, opts) {
-    this.resize = resize;
-    var chartEl = $(el).css('position', 'relative');
-    var sizeProp = opts.sizeAttr || 'size';
-    var labelFormatter = opts.labelFormatter || function(d){ return _.escape(d.name); };
+], function(i18n, Transition) {
 
-    var width, height = chartEl.height(), radius, minRadius = 70;
-    var colorFn = opts.colorFn || function (d) { return color((d.children ? d : d.parent).name); };
+    return function Sunburst(el, opts) {
 
-    var x = d3.scale.linear().range([0, 2 * Math.PI]), y;
+        this.resize = resize;
+        this.redraw = redraw;
+        var chartEl = $(el).css('position', 'relative');
+        var sizeProp = opts.sizeAttr || 'size';
+        var labelFormatter = opts.labelFormatter || function(d){ return _.escape(d.name); };
 
-    resize();
+        var width, height = chartEl.height(), radius, minRadius = 70;
+        var colorFn = opts.colorFn || function (d) { return color((d.children ? d : d.parent).name); };
 
-    function resize() {
-        width = chartEl.width();
-        height = chartEl.height();
-        radius = Math.min(width, height) / 2;
+        var x = d3.scale.linear().range([0, 2 * Math.PI]), y;
 
-        y = d3.scale.sqrt().range([0, radius]);
+        resize();
 
-        if (paper) {
-            paper.setSize(width, height);
-            paper.setViewBox(-0.5 * width, -0.5 * height, width, height);
+        function resize() {
+            width = chartEl.width();
+            height = chartEl.height();
+            radius = Math.min(width, height) / 2;
 
-            Raphael.vml && vmlPositionFix();
+            y = d3.scale.sqrt().range([0, radius]);
 
-            if (centerLabel) {
-                centerLabel.css('left',0.5 * (width - centerLabel.width()))
-                           .css('top', 0.5 * (height - centerLabel.height()));
-            }
+            if (paper) {
+                paper.setSize(width, height);
+                paper.setViewBox(-0.5 * width, -0.5 * height, width, height);
 
-            if (arcEls && arcEls.length) {
-                onClick(prevClicked || arcData[0]);
+                Raphael.vml && vmlPositionFix();
+
+                if (centerLabel) {
+                    centerLabel.css('left',0.5 * (width - centerLabel.width()))
+                               .css('top', 0.5 * (height - centerLabel.height()));
+                }
+
+                if (arcEls && arcEls.length) {
+                    onClick(prevClicked || arcData[0]);
+                }
             }
         }
-    }
 
-    function vmlPositionFix() {
-        // Raphael 2.1.0 has issues with setViewBox in IE6/7/8, as a workaround we set a identity transform set
-        // each time the view box changes.
-        arcEls.forEach(function(link){link.attr('transform', 't0,0');});
-    }
+        function vmlPositionFix() {
+            // Raphael 2.1.0 has issues with setViewBox in IE6/7/8, as a workaround we set a identity transform set
+            // each time the view box changes.
+            arcEls.forEach(function(link){link.attr('transform', 't0,0');});
+        }
 
-    var color = d3.scale.category20c();
+        var color = d3.scale.category20c();
 
-    var paper = Raphael(chartEl[0], width, height);
-    paper.setViewBox(-0.5 * width, -0.5 * height, width, height);
+        var paper = Raphael(chartEl[0], width, height);
+        paper.setViewBox(-0.5 * width, -0.5 * height, width, height);
 
-    var partition = d3.layout.partition()
-        .value(function(d) { return d[sizeProp]; })
-        .innerValue(function(d) {
-            var innerSize = d[sizeProp];
-            var children = d.children;
-            if (children) {
-                for (var ii = 0, max = children.length; ii < max; ++ii) {
-                    innerSize -= children[ii][sizeProp] || 0;
+        var partition = d3.layout.partition()
+            .value(function(d) { return d[sizeProp]; })
+            .innerValue(function(d) {
+                var innerSize = d[sizeProp];
+                var children = d.children;
+                if (children) {
+                    for (var ii = 0, max = children.length; ii < max; ++ii) {
+                        innerSize -= children[ii][sizeProp] || 0;
+                    }
+                }
+
+                // need the negative check to prevent overflow due to single documents having multiple fields
+                // e.g. if there's 5 PERSON fields in a doc with one PLACE field, expanding PLACE before PERSON means you'd have
+                // more docs on the outer-level than the inner-level.
+                // this also means the inner section is too large though?
+                return innerSize < 0 ? 0 : innerSize;
+            });
+
+         var arc = d3.svg.arc()
+            .startAngle(function(d) { return Math.max(0, Math.min(2 * Math.PI, x(d.x))); })
+            .endAngle(function(d) { return Math.max(0, Math.min(2 * Math.PI, x(d.x + d.dx))); })
+            .innerRadius(function(d) { return Math.max(0, y(d.y)); })
+            .outerRadius(function(d) { return Math.max(0, y(d.y + d.dy)); });
+
+        var prevClicked, prevHovered;
+        var animationTime = 1000;
+        var arcEls = [], arcData = [];
+        var lastTransition;
+
+        redraw(opts.data, false, true);
+
+        function redraw(json, retainZoom, animate) {
+            lastTransition && lastTransition.cancel();
+            lastTransition = null;
+            _.each(arcEls, function(arc){ arc.remove(); });
+
+            arcData = partition.nodes(json);
+
+            if (!retainZoom) {
+                x.domain([0,1]);
+                y.domain([0,1]).range([0, radius]);
+            } else if (prevClicked) {
+                // should zoom onto the current el
+                x.domain([prevClicked.x, prevClicked.x + prevClicked.dx]);
+                y.domain([prevClicked.y, 1]).range([prevClicked.y ? minRadius : 0, radius]);
+            }
+
+            // on the existing elements
+            arcEls = arcData.map(function(d, idx){
+                return paper.path(arc(d)).attr('fill', colorFn(d)).attr('stroke', 'none').click(function(){
+                    d !== prevClicked && onClick(arcData[idx]);
+                }).hover(function(){
+                    hover(arcData[idx]);
+                }, mouseout);
+            });
+
+            if (animate) {
+                if (arcData.length < 200 && Raphael.svg) {
+                    paper.set(arcEls).attr('opacity', 0).animate({opacity: 1}, animationTime);
                 }
             }
 
-            // need the negative check to prevent overflow due to single documents having multiple fields
-            // e.g. if there's 5 PERSON fields in a doc with one PLACE field, expanding PLACE before PERSON means you'd have
-            // more docs on the outer-level than the inner-level.
-            // this also means the inner section is too large though?
-            return innerSize < 0 ? 0 : innerSize;
-        });
-
-     var arc = d3.svg.arc()
-        .startAngle(function(d) { return Math.max(0, Math.min(2 * Math.PI, x(d.x))); })
-        .endAngle(function(d) { return Math.max(0, Math.min(2 * Math.PI, x(d.x + d.dx))); })
-        .innerRadius(function(d) { return Math.max(0, y(d.y)); })
-        .outerRadius(function(d) { return Math.max(0, y(d.y + d.dy)); });
-
-    var prevClicked, prevHovered;
-    var animationTime = 1000;
-    var arcEls = [], arcData = [];
-    var lastTransition;
-
-    redraw(opts.data);
-
-    function redraw(json, retainZoom) {
-        lastTransition && lastTransition.cancel();
-        lastTransition = null;
-        _.each(arcEls, function(arc){ arc.remove(); });
-
-        arcData = partition.nodes(json);
-
-        if (!retainZoom) {
-            x.domain([0,1]);
-            y.domain([0,1]).range([0, radius]);
-        } else if (prevClicked) {
-            // should zoom onto the current el
-            x.domain([prevClicked.x, prevClicked.x + prevClicked.dx]);
-            y.domain([prevClicked.y, 1]).range([prevClicked.y ? minRadius : 0, radius]);
         }
 
-        // on the existing elements
-        arcEls = arcData.map(function(d, idx){
-            return paper.path(arc(d)).attr('fill', colorFn(d)).attr('stroke', 'none').click(function(){
-                d !== prevClicked && onClick(arcData[idx]);
-            }).hover(function(){
-                hover(arcData[idx]);
-            }, mouseout);
-        });
+        hideCenterLabel();
 
-        if (arcData.length < 200 && Raphael.svg) {
-            paper.set(arcEls).attr('opacity', 0).animate({opacity: 1}, animationTime);
+        var centerLabel;
+
+        function onClick(d){
+            prevClicked = d;
+
+            var xd = d3.interpolate(x.domain(), [d.x, d.x + d.dx]),
+                    yd = d3.interpolate(y.domain(), [d.y, 1]),
+                    yr = d3.interpolate(y.range(), [d.y ? minRadius : 0, radius]);
+
+            if (Raphael.svg) {
+                lastTransition && lastTransition.cancel();
+                lastTransition = new Transition(animationTime, onTick);
+            }
+            else {
+                onTick(1);
+            }
+
+            function onTick(t){
+                x.domain(xd(t)); y.domain(yd(t)).range(yr(t));
+
+                for (var ii = 0, max = arcData.length; ii < max; ++ii) {
+                    arcEls[ii].attr('path', arc(arcData[ii]));
+                }
+            }
         }
 
-    }
+        function hover(d) {
+            if (prevHovered === d) {
+                return;
+            }
 
-    hideCenterLabel();
+            prevHovered = d;
 
-    var centerLabel;
-
-    function onClick(d){
-        prevClicked = d;
-
-        var xd = d3.interpolate(x.domain(), [d.x, d.x + d.dx]),
-                yd = d3.interpolate(y.domain(), [d.y, 1]),
-                yr = d3.interpolate(y.range(), [d.y ? minRadius : 0, radius]);
-
-        if (Raphael.svg) {
-            lastTransition && lastTransition.cancel();
-            lastTransition = new Transition(animationTime, onTick);
-        }
-        else {
-            onTick(1);
+            showCenterLabel(d);
         }
 
-        function onTick(t){
-            x.domain(xd(t)); y.domain(yd(t)).range(yr(t));
+        function mouseout() {
+            prevHovered = null;
+        }
 
-            for (var ii = 0, max = arcData.length; ii < max; ++ii) {
-                arcEls[ii].attr('path', arc(arcData[ii]));
+        function showCenterLabel(d) {
+            var innerHTML = labelFormatter(d, prevClicked);
+
+            if (!centerLabel) {
+                centerLabel = $('<div>'+innerHTML+'</div>').css({
+                    position: 'absolute',
+                    'text-align': 'center',
+                    'text-overflow': 'ellipsis',
+                    'pointer-events': 'none',
+                    color: 'white'
+                }).appendTo(chartEl);
+            }
+            else {
+                centerLabel.html(innerHTML);
+            }
+
+            centerLabel.css('left',0.5 * (chartEl.width() - centerLabel.width()))
+                       .css('top', 0.5 * (chartEl.height() - centerLabel.height()));
+        }
+
+        function hideCenterLabel() {
+            if (centerLabel) {
+                centerLabel.remove();
+                centerLabel = null;
             }
         }
     }
-
-    function hover(d) {
-        if (prevHovered === d) {
-            return;
-        }
-
-        prevHovered = d;
-
-        showCenterLabel(d);
-    }
-
-    function mouseout() {
-        prevHovered = null;
-    }
-
-    function showCenterLabel(d) {
-        var innerHTML = labelFormatter(d, prevClicked);
-
-        if (!centerLabel) {
-            centerLabel = $('<div>'+innerHTML+'</div>').css({
-                position: 'absolute',
-                'text-align': 'center',
-                'text-overflow': 'ellipsis',
-                'pointer-events': 'none',
-                color: 'white'
-            }).appendTo(chartEl);
-        }
-        else {
-            centerLabel.html(innerHTML);
-        }
-
-        centerLabel.css('left',0.5 * (chartEl.width() - centerLabel.width()))
-                   .css('top', 0.5 * (chartEl.height() - centerLabel.height()));
-    }
-
-    function hideCenterLabel() {
-        if (centerLabel) {
-            centerLabel.remove();
-            centerLabel = null;
-        }
-    }
-}});
+});
