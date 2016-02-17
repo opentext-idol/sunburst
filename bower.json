@@ -1,0 +1,26 @@
+{
+  "name": "hp-autonomy-sunburst",
+  "authors": [
+    "Tung Jin Chew <tung-jin.chew@hpe.com>",
+    "Will Byrne <will.byrne@hpe.com>"
+  ],
+  "description": "Jquery plugin for generating a sunburst visualisation",
+  "keywords": [
+    "sunburst",
+    "visualisations",
+    "hp"
+  ],
+  "license": "MIT",
+  "ignore": [
+    "**/.*",
+    "bower_components"
+  ],
+  "dependencies": {
+    "d3": "3.3.8",
+    "jquery": "~1.10.0",
+    "raphael": "2.1.2"
+  },
+  "resolutions": {
+    "jquery": "~1.10.0"
+  }
+}

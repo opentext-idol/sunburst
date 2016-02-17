@@ -1,21 +1,21 @@
 define([
-    'i18n!nls/bundle',
-    'app/vis/transition',
+    'sunburst/js/transition',
     'd3',
     'jquery',
     'raphael'
-], function(i18n, Transition) {
+], function(Transition) {
 
     return function Sunburst(el, opts) {
-
+        this.i18n = opts.i18n || {};
         this.resize = resize;
         this.redraw = redraw;
         var chartEl = $(el).css('position', 'relative');
         var sizeProp = opts.sizeAttr || 'size';
-        var labelFormatter = opts.labelFormatter || function(d){ return _.escape(d.name); };
+        var nameProp = opts.nameAttr || 'name';
+        var labelFormatter = opts.labelFormatter || function(d){ return _.escape(d[nameProp]); };
 
         var width, height = chartEl.height(), radius, minRadius = 70;
-        var colorFn = opts.colorFn || function (d) { return color((d.children ? d : d.parent).name); };
+        var colorFn = opts.colorFn || function (d) { return color((d.children ? d : d.parent)[nameProp]); };
 
         var x = d3.scale.linear().range([0, 2 * Math.PI]), y;
 
@@ -57,22 +57,7 @@ define([
         paper.setViewBox(-0.5 * width, -0.5 * height, width, height);
 
         var partition = d3.layout.partition()
-            .value(function(d) { return d[sizeProp]; })
-            .innerValue(function(d) {
-                var innerSize = d[sizeProp];
-                var children = d.children;
-                if (children) {
-                    for (var ii = 0, max = children.length; ii < max; ++ii) {
-                        innerSize -= children[ii][sizeProp] || 0;
-                    }
-                }
-
-                // need the negative check to prevent overflow due to single documents having multiple fields
-                // e.g. if there's 5 PERSON fields in a doc with one PLACE field, expanding PLACE before PERSON means you'd have
-                // more docs on the outer-level than the inner-level.
-                // this also means the inner section is too large though?
-                return innerSize < 0 ? 0 : innerSize;
-            });
+            .value(function(d) { return d[sizeProp]; });
 
          var arc = d3.svg.arc()
             .startAngle(function(d) { return Math.max(0, Math.min(2 * Math.PI, x(d.x))); })

@@ -1,0 +1,10 @@
+# IntelliJ
+.idea/
+*.ipr
+*.iws
+
+#Node Modules
+node_modules
+
+# Bower
+bower_components/
