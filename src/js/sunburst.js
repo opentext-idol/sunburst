@@ -9,6 +9,8 @@ define([
         this.i18n = opts.i18n || {};
         this.resize = resize;
         this.redraw = redraw;
+        var outerRingAnimateSize = 15;
+        var inTransition = false;
         var chartEl = $(el).css('position', 'relative');
         var sizeProp = opts.sizeAttr || 'size';
         var nameProp = opts.nameAttr || 'name';
@@ -24,7 +26,7 @@ define([
         function resize() {
             width = chartEl.width();
             height = chartEl.height();
-            radius = Math.min(width, height) / 2;
+            radius = Math.min(width, height) / 2 - outerRingAnimateSize;
 
             y = d3.scale.sqrt().range([0, radius]);
 
@@ -35,7 +37,7 @@ define([
                 Raphael.vml && vmlPositionFix();
 
                 if (centerLabel) {
-                    centerLabel.css('left',0.5 * (width - centerLabel.width()))
+                    centerLabel.css('left', 0.5 * (width - centerLabel.width()))
                                .css('top', 0.5 * (height - centerLabel.height()));
                 }
 
@@ -65,6 +67,12 @@ define([
             .innerRadius(function(d) { return Math.max(0, y(d.y)); })
             .outerRadius(function(d) { return Math.max(0, y(d.y + d.dy)); });
 
+        var hoverArc = d3.svg.arc()
+            .startAngle(function(d) { return Math.max(0, Math.min(2 * Math.PI, x(d.x))); })
+            .endAngle(function(d) { return Math.max(0, Math.min(2 * Math.PI, x(d.x + d.dx))); })
+            .innerRadius(function(d) { return Math.max(0, y(d.y)); })
+            .outerRadius(function(d) { return Math.max(0, y(d.y + d.dy)) + outerRingAnimateSize; });
+
         var prevClicked, prevHovered;
         var animationTime = 1000;
         var arcEls = [], arcData = [];
@@ -90,11 +98,13 @@ define([
 
             // on the existing elements
             arcEls = arcData.map(function(d, idx){
-                return paper.path(arc(d)).attr('fill', colorFn(d)).attr('stroke', 'none').click(function(){
+                return paper.path(arc(d)).attr('fill', colorFn(d)).attr('stroke', 'white').click(function(){
                     d !== prevClicked && onClick(arcData[idx]);
                 }).hover(function(){
                     hover(arcData[idx]);
-                }, mouseout);
+                }, function() {
+                    mouseout(arcData[idx])
+                });
             });
 
             if (animate) {
@@ -111,6 +121,7 @@ define([
 
         function onClick(d){
             prevClicked = d;
+            inTransition = true;
 
             var xd = d3.interpolate(x.domain(), [d.x, d.x + d.dx]),
                     yd = d3.interpolate(y.domain(), [d.y, 1]),
@@ -130,6 +141,10 @@ define([
                 for (var ii = 0, max = arcData.length; ii < max; ++ii) {
                     arcEls[ii].attr('path', arc(arcData[ii]));
                 }
+
+                if (t === 1) {
+                    inTransition = false;
+                }
             }
         }
 
@@ -141,10 +156,36 @@ define([
             prevHovered = d;
 
             showCenterLabel(d);
+
+            if (inTransition) {
+                return;
+            }
+
+            hoverAnimation(d, hoverArc)
         }
 
-        function mouseout() {
+        function mouseout(d) {
             prevHovered = null;
+
+            if (inTransition) {
+                return;
+            }
+
+            hoverAnimation(d, arc)
+        }
+
+        function hoverAnimation(d, arcFunction) {
+            _.chain(_.zip(arcData, arcEls))
+                .filter(function(dataEl) {
+                    var data = dataEl[0];
+
+                    return data.depth === 2 && data.text === d.text;
+                })
+                .each(function(dataEl) {
+                    var el = dataEl[1];
+
+                    paper.set(el).animate({path: arcFunction(dataEl[0])}, 100);
+                });
         }
 
         function showCenterLabel(d) {
@@ -156,7 +197,7 @@ define([
                     'text-align': 'center',
                     'text-overflow': 'ellipsis',
                     'pointer-events': 'none',
-                    color: 'white'
+                    color: 'black'
                 }).appendTo(chartEl);
             }
             else {
