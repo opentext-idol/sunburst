@@ -1,18 +1,23 @@
 define([
     'sunburst/js/transition',
-    'd3',
     'jquery',
+    'd3',
     'raphael'
-], function(Transition) {
+], function(Transition, $) {
 
     return function Sunburst(el, opts) {
         this.i18n = opts.i18n || {};
         this.resize = resize;
         this.redraw = redraw;
+        var inTransition = false;
+        var animate = opts.animate === undefined ? true : opts.animate;
         var chartEl = $(el).css('position', 'relative');
         var sizeProp = opts.sizeAttr || 'size';
         var nameProp = opts.nameAttr || 'name';
         var labelFormatter = opts.labelFormatter || function(d){ return _.escape(d[nameProp]); };
+        var customClick = opts.onClick || $.noop;
+        var hoverAnimation = opts.hoverAnimation || $.noop;
+        var outerRingAnimateSize = opts.outerRingAnimateSize || 0;
 
         var width, height = chartEl.height(), radius, minRadius = 70;
         var colorFn = opts.colorFn || function (d) { return color((d.children ? d : d.parent)[nameProp]); };
@@ -24,7 +29,7 @@ define([
         function resize() {
             width = chartEl.width();
             height = chartEl.height();
-            radius = Math.min(width, height) / 2;
+            radius = Math.min(width, height) / 2 - outerRingAnimateSize;
 
             y = d3.scale.sqrt().range([0, radius]);
 
@@ -35,7 +40,7 @@ define([
                 Raphael.vml && vmlPositionFix();
 
                 if (centerLabel) {
-                    centerLabel.css('left',0.5 * (width - centerLabel.width()))
+                    centerLabel.css('left', 0.5 * (width - centerLabel.width()))
                                .css('top', 0.5 * (height - centerLabel.height()));
                 }
 
@@ -59,11 +64,13 @@ define([
         var partition = d3.layout.partition()
             .value(function(d) { return d[sizeProp]; });
 
-         var arc = d3.svg.arc()
-            .startAngle(function(d) { return Math.max(0, Math.min(2 * Math.PI, x(d.x))); })
-            .endAngle(function(d) { return Math.max(0, Math.min(2 * Math.PI, x(d.x + d.dx))); })
-            .innerRadius(function(d) { return Math.max(0, y(d.y)); })
-            .outerRadius(function(d) { return Math.max(0, y(d.y + d.dy)); });
+        var createArc = function(hoverAnimateSize) {
+            return d3.svg.arc()
+                .startAngle(function(d) { return Math.max(0, Math.min(2 * Math.PI, x(d.x))); })
+                .endAngle(function(d) { return Math.max(0, Math.min(2 * Math.PI, x(d.x + d.dx))); })
+                .innerRadius(function(d) { return Math.max(0, y(d.y)); })
+                .outerRadius(function(d) { return Math.max(0, y(d.y + d.dy)) + hoverAnimateSize; });
+        };
 
         var prevClicked, prevHovered;
         var animationTime = 1000;
@@ -90,11 +97,13 @@ define([
 
             // on the existing elements
             arcEls = arcData.map(function(d, idx){
-                return paper.path(arc(d)).attr('fill', colorFn(d)).attr('stroke', 'none').click(function(){
+                return paper.path(createArc(0)(d)).attr('fill', colorFn(d)).attr('stroke', 'white').click(function(){
                     d !== prevClicked && onClick(arcData[idx]);
                 }).hover(function(){
                     hover(arcData[idx]);
-                }, mouseout);
+                }, function() {
+                    mouseout(arcData[idx])
+                });
             });
 
             if (animate) {
@@ -109,26 +118,37 @@ define([
 
         var centerLabel;
 
-        function onClick(d){
-            prevClicked = d;
+        function onClick(d) {
 
-            var xd = d3.interpolate(x.domain(), [d.x, d.x + d.dx]),
+            customClick(d);
+    
+            if (animate) {
+                prevClicked = d;
+                inTransition = true;
+
+                var xd = d3.interpolate(x.domain(), [d.x, d.x + d.dx]),
                     yd = d3.interpolate(y.domain(), [d.y, 1]),
                     yr = d3.interpolate(y.range(), [d.y ? minRadius : 0, radius]);
 
-            if (Raphael.svg) {
-                lastTransition && lastTransition.cancel();
-                lastTransition = new Transition(animationTime, onTick);
-            }
-            else {
-                onTick(1);
-            }
+                if (Raphael.svg) {
+                    lastTransition && lastTransition.cancel();
+                    lastTransition = new Transition(animationTime, onTick);
+                }
+                else {
+                    onTick(1);
+                }
 
-            function onTick(t){
-                x.domain(xd(t)); y.domain(yd(t)).range(yr(t));
+                function onTick(t) {
+                    x.domain(xd(t));
+                    y.domain(yd(t)).range(yr(t));
 
-                for (var ii = 0, max = arcData.length; ii < max; ++ii) {
-                    arcEls[ii].attr('path', arc(arcData[ii]));
+                    for (var ii = 0, max = arcData.length; ii < max; ++ii) {
+                        arcEls[ii].attr('path', createArc(0)(arcData[ii]));
+                    }
+
+                    if (t === 1) {
+                        inTransition = false;
+                    }
                 }
             }
         }
@@ -141,11 +161,24 @@ define([
             prevHovered = d;
 
             showCenterLabel(d);
+
+            if (inTransition) {
+                return;
+            }
+
+            hoverAnimation(d, createArc, outerRingAnimateSize, arcEls, arcData, paper)
         }
 
-        function mouseout() {
+        function mouseout(d) {
             prevHovered = null;
+
+            if (inTransition) {
+                return;
+            }
+
+            hoverAnimation(d, createArc, 0, arcEls, arcData, paper)
         }
+
 
         function showCenterLabel(d) {
             var innerHTML = labelFormatter(d, prevClicked);
@@ -156,7 +189,7 @@ define([
                     'text-align': 'center',
                     'text-overflow': 'ellipsis',
                     'pointer-events': 'none',
-                    color: 'white'
+                    color: 'black'
                 }).appendTo(chartEl);
             }
             else {
