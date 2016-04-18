@@ -10,10 +10,12 @@ define([
         this.resize = resize;
         this.redraw = redraw;
         var inTransition = false;
+        var animate = opts.animate === undefined ? true : opts.animate;
         var chartEl = $(el).css('position', 'relative');
         var sizeProp = opts.sizeAttr || 'size';
         var nameProp = opts.nameAttr || 'name';
         var labelFormatter = opts.labelFormatter || function(d){ return _.escape(d[nameProp]); };
+        var customClick = opts.onClick || $.noop;
         var hoverAnimation = opts.hoverAnimation || $.noop;
         var outerRingAnimateSize = opts.outerRingAnimateSize || 0;
 
@@ -68,7 +70,7 @@ define([
                 .endAngle(function(d) { return Math.max(0, Math.min(2 * Math.PI, x(d.x + d.dx))); })
                 .innerRadius(function(d) { return Math.max(0, y(d.y)); })
                 .outerRadius(function(d) { return Math.max(0, y(d.y + d.dy)) + hoverAnimateSize; });
-        }
+        };
 
         var prevClicked, prevHovered;
         var animationTime = 1000;
@@ -116,31 +118,37 @@ define([
 
         var centerLabel;
 
-        function onClick(d){
-            prevClicked = d;
-            inTransition = true;
+        function onClick(d) {
 
-            var xd = d3.interpolate(x.domain(), [d.x, d.x + d.dx]),
+            customClick(d);
+    
+            if (animate) {
+                prevClicked = d;
+                inTransition = true;
+
+                var xd = d3.interpolate(x.domain(), [d.x, d.x + d.dx]),
                     yd = d3.interpolate(y.domain(), [d.y, 1]),
                     yr = d3.interpolate(y.range(), [d.y ? minRadius : 0, radius]);
 
-            if (Raphael.svg) {
-                lastTransition && lastTransition.cancel();
-                lastTransition = new Transition(animationTime, onTick);
-            }
-            else {
-                onTick(1);
-            }
-
-            function onTick(t){
-                x.domain(xd(t)); y.domain(yd(t)).range(yr(t));
-
-                for (var ii = 0, max = arcData.length; ii < max; ++ii) {
-                    arcEls[ii].attr('path', createArc(0)(arcData[ii]));
+                if (Raphael.svg) {
+                    lastTransition && lastTransition.cancel();
+                    lastTransition = new Transition(animationTime, onTick);
+                }
+                else {
+                    onTick(1);
                 }
 
-                if (t === 1) {
-                    inTransition = false;
+                function onTick(t) {
+                    x.domain(xd(t));
+                    y.domain(yd(t)).range(yr(t));
+
+                    for (var ii = 0, max = arcData.length; ii < max; ++ii) {
+                        arcEls[ii].attr('path', createArc(0)(arcData[ii]));
+                    }
+
+                    if (t === 1) {
+                        inTransition = false;
+                    }
                 }
             }
         }
