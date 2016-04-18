@@ -1,20 +1,21 @@
 define([
     'sunburst/js/transition',
-    'd3',
     'jquery',
+    'd3',
     'raphael'
-], function(Transition) {
+], function(Transition, $) {
 
     return function Sunburst(el, opts) {
         this.i18n = opts.i18n || {};
         this.resize = resize;
         this.redraw = redraw;
-        var outerRingAnimateSize = 15;
         var inTransition = false;
         var chartEl = $(el).css('position', 'relative');
         var sizeProp = opts.sizeAttr || 'size';
         var nameProp = opts.nameAttr || 'name';
         var labelFormatter = opts.labelFormatter || function(d){ return _.escape(d[nameProp]); };
+        var hoverAnimation = opts.hoverAnimation || $.noop;
+        var outerRingAnimateSize = opts.outerRingAnimateSize || 0;
 
         var width, height = chartEl.height(), radius, minRadius = 70;
         var colorFn = opts.colorFn || function (d) { return color((d.children ? d : d.parent)[nameProp]); };
@@ -61,17 +62,13 @@ define([
         var partition = d3.layout.partition()
             .value(function(d) { return d[sizeProp]; });
 
-         var arc = d3.svg.arc()
-            .startAngle(function(d) { return Math.max(0, Math.min(2 * Math.PI, x(d.x))); })
-            .endAngle(function(d) { return Math.max(0, Math.min(2 * Math.PI, x(d.x + d.dx))); })
-            .innerRadius(function(d) { return Math.max(0, y(d.y)); })
-            .outerRadius(function(d) { return Math.max(0, y(d.y + d.dy)); });
-
-        var hoverArc = d3.svg.arc()
-            .startAngle(function(d) { return Math.max(0, Math.min(2 * Math.PI, x(d.x))); })
-            .endAngle(function(d) { return Math.max(0, Math.min(2 * Math.PI, x(d.x + d.dx))); })
-            .innerRadius(function(d) { return Math.max(0, y(d.y)); })
-            .outerRadius(function(d) { return Math.max(0, y(d.y + d.dy)) + outerRingAnimateSize; });
+        var createArc = function(hoverAnimateSize) {
+            return d3.svg.arc()
+                .startAngle(function(d) { return Math.max(0, Math.min(2 * Math.PI, x(d.x))); })
+                .endAngle(function(d) { return Math.max(0, Math.min(2 * Math.PI, x(d.x + d.dx))); })
+                .innerRadius(function(d) { return Math.max(0, y(d.y)); })
+                .outerRadius(function(d) { return Math.max(0, y(d.y + d.dy)) + hoverAnimateSize; });
+        }
 
         var prevClicked, prevHovered;
         var animationTime = 1000;
@@ -98,7 +95,7 @@ define([
 
             // on the existing elements
             arcEls = arcData.map(function(d, idx){
-                return paper.path(arc(d)).attr('fill', colorFn(d)).attr('stroke', 'white').click(function(){
+                return paper.path(createArc(0)(d)).attr('fill', colorFn(d)).attr('stroke', 'white').click(function(){
                     d !== prevClicked && onClick(arcData[idx]);
                 }).hover(function(){
                     hover(arcData[idx]);
@@ -139,7 +136,7 @@ define([
                 x.domain(xd(t)); y.domain(yd(t)).range(yr(t));
 
                 for (var ii = 0, max = arcData.length; ii < max; ++ii) {
-                    arcEls[ii].attr('path', arc(arcData[ii]));
+                    arcEls[ii].attr('path', createArc(0)(arcData[ii]));
                 }
 
                 if (t === 1) {
@@ -161,7 +158,7 @@ define([
                 return;
             }
 
-            hoverAnimation(d, hoverArc)
+            hoverAnimation(d, createArc, outerRingAnimateSize, arcEls, arcData, paper)
         }
 
         function mouseout(d) {
@@ -171,22 +168,9 @@ define([
                 return;
             }
 
-            hoverAnimation(d, arc)
+            hoverAnimation(d, createArc, 0, arcEls, arcData, paper)
         }
 
-        function hoverAnimation(d, arcFunction) {
-            _.chain(_.zip(arcData, arcEls))
-                .filter(function(dataEl) {
-                    var data = dataEl[0];
-
-                    return data.depth === 2 && data.text === d.text;
-                })
-                .each(function(dataEl) {
-                    var el = dataEl[1];
-
-                    paper.set(el).animate({path: arcFunction(dataEl[0])}, 100);
-                });
-        }
 
         function showCenterLabel(d) {
             var innerHTML = labelFormatter(d, prevClicked);
