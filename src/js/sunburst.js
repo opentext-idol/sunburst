@@ -19,7 +19,7 @@ define([
         var hoverAnimation = opts.hoverAnimation || $.noop;
         var outerRingAnimateSize = opts.outerRingAnimateSize || 0;
 
-        var width, height = chartEl.height(), radius, minRadius = 70;
+        var width, height, divWidth, radius, minRadius = 70;
         var colorFn = opts.colorFn || function (d) { return color((d.children ? d : d.parent)[nameProp]); };
 
         var x = d3.scale.linear().range([0, 2 * Math.PI]), y;
@@ -27,15 +27,16 @@ define([
         resize();
 
         function resize() {
-            width = chartEl.width();
+            divWidth = chartEl.width();
+            width = 600;
             height = chartEl.height();
             radius = Math.min(width, height) / 2 - outerRingAnimateSize;
 
             y = d3.scale.sqrt().range([0, radius]);
 
             if (paper) {
-                paper.setSize(width, height);
-                paper.setViewBox(-0.5 * width, -0.5 * height, width, height);
+                paper.setSize(divWidth, height);
+                paper.setViewBox(-0.5 * divWidth, -0.5 * height, divWidth, height);
 
                 Raphael.vml && vmlPositionFix();
 
@@ -47,6 +48,12 @@ define([
                 if (arcEls && arcEls.length) {
                     onClick(prevClicked || arcData[0]);
                 }
+                arcData.forEach( function(dataEl){
+                    paper.set(el).animate({path: createArc(outerRingAnimateSize)(dataEl)}, 100);
+                });
+
+                hideCenterLabel();
+
             }
         }
 
@@ -58,8 +65,8 @@ define([
 
         var color = d3.scale.category20c();
 
-        var paper = Raphael(chartEl[0], width, height);
-        paper.setViewBox(-0.5 * width, -0.5 * height, width, height);
+        var paper = Raphael(chartEl[0], divWidth, height);
+        paper.setViewBox(-0.5 * divWidth, -0.5 * height, divWidth, height);
 
         var partition = d3.layout.partition()
             .value(function(d) { return d[sizeProp]; });
