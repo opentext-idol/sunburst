@@ -1,9 +1,10 @@
 define([
     'sunburst/js/transition',
     'jquery',
+    'underscore',
     'd3',
     'raphael'
-], function(Transition, $) {
+], function(Transition, $, _) {
 
     return function Sunburst(el, opts) {
         this.i18n = opts.i18n || {};
