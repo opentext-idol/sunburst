@@ -18,11 +18,8 @@
   ],
   "dependencies": {
     "d3": "3.3.8",
-    "jquery": "~1.10.0",
+    "jquery": "1.10.2",
     "raphael": "2.1.2",
     "underscore": "1.8.3"
-  },
-  "resolutions": {
-    "jquery": "~1.10.0"
   }
 }

@@ -19,7 +19,8 @@ define([
         var customClick = opts.onClick || $.noop;
         var hoverAnimation = opts.hoverAnimation || $.noop;
         var outerRingAnimateSize = opts.outerRingAnimateSize || 0;
-
+        var strokeColour = opts.strokeColour || 'white';
+        
         var width, height, divWidth, radius, minRadius = 70;
         var colorFn = opts.colorFn || function (d) { return color((d.children ? d : d.parent)[nameProp]); };
 
@@ -105,7 +106,7 @@ define([
 
             // on the existing elements
             arcEls = arcData.map(function(d, idx){
-                return paper.path(createArc(0)(d)).attr('fill', colorFn(d)).attr('stroke', 'white').click(function(){
+                return paper.path(createArc(0)(d)).attr('fill', colorFn(d)).attr('stroke', strokeColour).click(function(){
                     d !== prevClicked && onClick(arcData[idx]);
                 }).hover(function(){
                     hover(arcData[idx]);
