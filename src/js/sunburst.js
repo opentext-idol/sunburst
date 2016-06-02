@@ -20,6 +20,7 @@ define([
         var hoverAnimation = opts.hoverAnimation || $.noop;
         var outerRingAnimateSize = opts.outerRingAnimateSize || 0;
         var strokeColour = opts.strokeColour || 'white';
+        var comparator = opts.comparator;
         
         var width, height, divWidth, radius, minRadius = 70;
         var colorFn = opts.colorFn || function (d) { return color((d.children ? d : d.parent)[nameProp]); };
@@ -72,6 +73,11 @@ define([
 
         var partition = d3.layout.partition()
             .value(function(d) { return d[sizeProp]; });
+
+        // calling sort with undefined is not the same as not calling it at all
+        if(comparator !== undefined) {
+            partition.sort(comparator);
+        }
 
         var createArc = function(hoverAnimateSize) {
             return d3.svg.arc()
