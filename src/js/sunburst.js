@@ -1,10 +1,10 @@
 define([
-    'sunburst/js/transition',
+    './transition',
     'jquery',
     'underscore',
-    'd3',
-    'raphael'
-], function(Transition, $, _) {
+    'Raphael',
+    'd3'
+], function(Transition, $, _, Raphael, d3) {
 
     return function Sunburst(el, opts) {
         this.i18n = opts.i18n || {};
@@ -117,7 +117,7 @@ define([
                 }).hover(function(){
                     hover(arcData[idx]);
                 }, function() {
-                    mouseout(arcData[idx])
+                    mouseout(arcData[idx]);
                 });
             });
 
@@ -181,7 +181,7 @@ define([
                 return;
             }
 
-            hoverAnimation(d, createArc, outerRingAnimateSize, arcEls, arcData, paper)
+            hoverAnimation(d, createArc, outerRingAnimateSize, arcEls, arcData, paper);
         }
 
         function mouseout(d) {
@@ -191,7 +191,7 @@ define([
                 return;
             }
 
-            hoverAnimation(d, createArc, 0, arcEls, arcData, paper)
+            hoverAnimation(d, createArc, 0, arcEls, arcData, paper);
         }
 
 
@@ -221,5 +221,5 @@ define([
                 centerLabel = null;
             }
         }
-    }
+    };
 });

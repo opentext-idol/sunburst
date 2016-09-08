@@ -19,7 +19,7 @@
   "dependencies": {
     "d3": "3.3.8",
     "jquery": "1.10.2",
-    "raphael": "2.1.2",
+    "raphael": "2.2.0",
     "underscore": "1.8.3"
   }
 }
