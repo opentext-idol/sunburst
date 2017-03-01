@@ -12,60 +12,81 @@ define([
 ], function(_, $, d3, Raphael, Transition) {
     'use strict';
 
-    return function Sunburst(el, opts) {
-        this.i18n = opts.i18n || {};
+    function processOptionalFunction(optionProvided, defaultFunction) {
+        return optionProvided === null
+            ? null
+            : _.isFunction(optionProvided)
+                   ? optionProvided
+                   : defaultFunction;
+    }
+
+    return function Sunburst(el, options) {
         this.resize = resize;
         this.redraw = redraw;
+        var rawData = options.data;
         var inTransition = false;
-        var animate = opts.animate === undefined ? true : opts.animate;
-        var chartEl = $(el).css('position', 'relative');
-        var sizeProp = opts.sizeAttr || 'size';
-        var nameProp = opts.nameAttr || 'name';
-        var labelFormatter = opts.labelFormatter || function(d) {
-                return _.escape(d[nameProp]);
-            };
-        var customClick = opts.onClick || $.noop;
-        var hoverAnimation = opts.hoverAnimation || $.noop;
-        var outerRingAnimateSize = opts.outerRingAnimateSize || 0;
-        var strokeColour = opts.strokeColour || 'white';
-        var comparator = opts.comparator;
+        var animate = options.animate === true;
+        var $container = $(el).css('position', 'relative');
+        var sizeProp = options.sizeAttr || 'size';
+        var nameProp = options.nameAttr || 'name';
 
-        var width, height, divWidth, radius, minRadius = 70;
-        var colorFn = opts.colorFn || function(d) {
-                return color((d.children ? d : d.parent)[nameProp]);
-            };
+        function defaultLabelFormatter(d) {
+            return _.escape(d[nameProp]);
+        }
+
+        var labelFormatter = processOptionalFunction(options.labelFormatter, defaultLabelFormatter);
+
+        var clickCallback = options.clickCallback || _.noop;
+        var hoverCallback = options.hoverCallback || _.noop;
+        var outerRingAnimateSize = options.outerRingAnimateSize || 0;
+        var strokeWidth = options.strokeWidth || '1px';
+        var strokeColor = options.strokeColor || 'black';
+        var comparator = options.comparator;
+
+        var containerWidth, containerHeight, radius, minRadius = 70;
+
+        // Sunburst's centre should have no stroke -- looks strange when no data provided
+        function strokeColorFn(d) {
+            return d.parent
+                ? strokeColor
+                : 'none';
+        }
+
+        const defaultFillColorPalette = d3.scale.category20c();
+        function defaultFillColorFn(d) {
+            return defaultFillColorPalette((d.children ? d : d.parent)[nameProp]);
+        }
+
+        var fillColorFn = processOptionalFunction(options.fillColorFn, defaultFillColorFn);
 
         var x = d3.scale.linear().range([0, 2 * Math.PI]), y;
 
         resize();
 
         function resize() {
-            divWidth = chartEl.width();
-            width = 600;
-            height = chartEl.height();
-            radius = Math.min(width, height) / 2 - outerRingAnimateSize;
+            containerWidth = $container.width();
+            containerHeight = $container.height();
+
+            radius = Math.min(containerWidth, containerHeight) / 2 - outerRingAnimateSize;
 
             y = d3.scale.sqrt().range([0, radius]);
 
-            if(paper) {
-                paper.setSize(divWidth, height);
-                paper.setViewBox(-0.5 * divWidth, -0.5 * height, divWidth, height);
+            if(svg) {
+                svg.setSize(containerWidth, containerHeight);
+                svg.setViewBox(-0.5 * containerWidth, -0.5 * containerHeight, containerWidth, containerHeight);
 
                 Raphael.vml && vmlPositionFix();
 
-                if(centerLabel) {
-                    centerLabel.css('left', 0.5 * (width - centerLabel.width()))
-                        .css('top', 0.5 * (height - centerLabel.height()));
-                }
+                centerLabel();
 
                 if(arcEls && arcEls.length) {
                     onClick(prevClicked || arcData[0]);
                 }
                 arcData.forEach(function(dataEl) {
-                    paper.set(el).animate({path: createArc(outerRingAnimateSize)(dataEl)}, 100);
+                    svg.set(el).animate({path: createArc(outerRingAnimateSize)(dataEl)}, 100);
                 });
 
-                hideCenterLabel();
+                hideLabel();
             }
         }
 
@@ -77,10 +98,8 @@ define([
             });
         }
 
-        var color = d3.scale.category20c();
-
-        var paper = Raphael(chartEl[0], divWidth, height);
-        paper.setViewBox(-0.5 * divWidth, -0.5 * height, divWidth, height);
+        var svg = Raphael($container[0], containerWidth, containerHeight);
+        svg.setViewBox(-0.5 * containerWidth, -0.5 * containerHeight, containerWidth, containerHeight);
 
         var partition = d3.layout.partition()
             .value(function(d) {
@@ -92,19 +111,19 @@ define([
             partition.sort(comparator);
         }
 
-        var createArc = function(hoverAnimateSize) {
+        var createArc = function(hoverRadius) {
             return d3.svg.arc()
                 .startAngle(function(d) {
-                    return Math.max(0, Math.min(2 * Math.PI, x(d.x)));
+                    return x(d.x);
                 })
                 .endAngle(function(d) {
-                    return Math.max(0, Math.min(2 * Math.PI, x(d.x + d.dx)));
+                    return x(d.x + d.dx);
                 })
                 .innerRadius(function(d) {
                     return Math.max(0, y(d.y));
                 })
                 .outerRadius(function(d) {
-                    return Math.max(0, y(d.y + d.dy)) + hoverAnimateSize;
+                    return Math.max(0, y(d.y + d.dy)) + (hoverRadius || 0);
                 });
         };
 
@@ -113,16 +132,16 @@ define([
         var arcEls = [], arcData = [];
         var lastTransition;
 
-        redraw(opts.data, false, true);
+        redraw(false, animate);
 
-        function redraw(json, retainZoom, animate) {
+        function redraw(retainZoom, animate) {
             lastTransition && lastTransition.cancel();
             lastTransition = null;
             _.each(arcEls, function(arc) {
                 arc.remove();
             });
 
-            arcData = partition.nodes(json);
+            arcData = partition.nodes(rawData);
 
             if(!retainZoom) {
                 x.domain([0, 1]);
@@ -132,26 +151,31 @@ define([
                 x.domain([prevClicked.x, prevClicked.x + prevClicked.dx]);
                 y.domain([prevClicked.y, 1]).range([prevClicked.y ? minRadius : 0, radius]);
             }
+            x.clamp();
 
             // on the existing elements
             arcEls = arcData.map(function(d, idx) {
-                return paper.path(createArc(0)(d)).attr('fill', colorFn(d)).attr('stroke', strokeColour).click(function() {
-                    d !== prevClicked && onClick(arcData[idx]);
-                }).hover(function() {
-                    hover(arcData[idx]);
-                }, function() {
-                    mouseout(arcData[idx]);
-                });
+                return svg.path(createArc(0)(d))
+                    .attr('fill', fillColorFn(d))
+                    .attr('stroke', strokeColorFn(d))
+                    .attr('stroke-width', strokeWidth)
+                    .click(function() {
+                        d !== prevClicked && onClick(arcData[idx]);
+                    }).hover(function() {
+                        mouseover(arcData[idx]);
+                    }, function() {
+                        mouseout(arcData[idx]);
+                    });
             });
 
             if(animate) {
                 if(arcData.length < 200 && Raphael.svg) {
-                    paper.set(arcEls).attr('opacity', 0).animate({opacity: 1}, animationTime);
+                    svg.set(arcEls).attr('opacity', 0).animate({opacity: 1}, animationTime);
                 }
             }
         }
 
-        hideCenterLabel();
+        hideLabel();
 
         function onTick(t, xd, yd, yr) {
             x.domain(xd(t));
@@ -167,7 +191,7 @@ define([
         }
 
         function onClick(d) {
-            customClick(d);
+            clickCallback(d);
 
             if(animate) {
                 prevClicked = d;
@@ -186,58 +210,67 @@ define([
             }
         }
 
-        var centerLabel;
+        var $label;
 
-        function hover(d) {
+        function mouseover(d) {
             if(prevHovered === d) {
                 return;
             }
 
             prevHovered = d;
 
-            showCenterLabel(d);
+            showLabel(d);
 
-            if(inTransition) {
-                return;
+            if(!inTransition) {
+                hoverCallback(d, createArc, outerRingAnimateSize, arcEls, arcData, svg);
             }
-
-            hoverAnimation(d, createArc, outerRingAnimateSize, arcEls, arcData, paper);
         }
 
         function mouseout(d) {
             prevHovered = null;
 
-            if(inTransition) {
-                return;
-            }
+            hideLabel();
 
-            hoverAnimation(d, createArc, 0, arcEls, arcData, paper);
+            if(!inTransition) {
+                hoverCallback(d, createArc, 0, arcEls, arcData, svg);
+            }
         }
 
-        function showCenterLabel(d) {
-            var innerHTML = labelFormatter(d, prevClicked);
+        function showLabel(d) {
+            if(labelFormatter) {
+                var innerHTML = labelFormatter(d, prevClicked);
 
-            if(!centerLabel) {
-                centerLabel = $('<div>' + innerHTML + '</div>').css({
-                    position: 'absolute',
-                    'text-align': 'center',
-                    'text-overflow': 'ellipsis',
-                    'pointer-events': 'none',
-                    color: 'black'
-                }).appendTo(chartEl);
-            }
-            else {
-                centerLabel.html(innerHTML);
-            }
+                if($label) {
+                    $label.html(innerHTML);
+                } else {
+                    $label = $('<div>' + innerHTML + '</div>')
+                        .css({
+                            position: 'absolute',
+                            'text-align': 'center',
+                            'text-overflow': 'ellipsis',
+                            'pointer-events': 'none',
+                            color: 'black'
+                        })
+                        .appendTo($container);
+                }
 
-            centerLabel.css('left', 0.5 * (chartEl.width() - centerLabel.width()))
-                .css('top', 0.5 * (chartEl.height() - centerLabel.height()));
+                centerLabel();
+            }
         }
 
-        function hideCenterLabel() {
-            if(centerLabel) {
-                centerLabel.remove();
-                centerLabel = null;
+        function hideLabel() {
+            if($label) {
+                $label.remove();
+                $label = null;
+            }
+        }
+
+        function centerLabel() {
+            if($label) {
+                $label.css({
+                    left: 0.5 * (containerWidth - $label.width()),
+                    top: 0.5 * (containerHeight - $label.height())
+                });
             }
         }
     };
