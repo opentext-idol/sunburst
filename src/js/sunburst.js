@@ -6,10 +6,8 @@
 define([
     'underscore',
     'jquery',
-    'd3',
-    'Raphael',
-    './transition'
-], function(_, $, d3, Raphael, Transition) {
+    'd3'
+], function(_, $, d3) {
     'use strict';
 
     function processOptionalFunction(optionProvided, defaultFunction) {
@@ -30,6 +28,11 @@ define([
         var sizeProp = options.sizeAttr || 'size';
         var nameProp = options.nameAttr || 'name';
 
+        var arcData = d3.layout.partition()
+            .value(function(d) {
+                return d[sizeProp];
+            }).nodes(rawData);
+
         function defaultLabelFormatter(d) {
             return _.escape(d[nameProp]);
         }
@@ -43,6 +46,16 @@ define([
         var strokeColor = options.strokeColor || 'black';
         var comparator = options.comparator;
 
+        function defaultKey(d) {
+            // Generate unique key for 2nd tier sectors
+            return (d.parent && d.parent.parent
+                    ? d.parent[nameProp] + '/'
+                    : '') +
+                d[nameProp];
+        }
+
+        var key = processOptionalFunction(options.key, defaultKey);
+
         var containerWidth, containerHeight, radius, minRadius = 70;
 
         // Sunburst's centre should have no stroke -- looks strange when no data provided
@@ -53,6 +66,7 @@ define([
         }
 
         const defaultFillColorPalette = d3.scale.category20c();
+
         function defaultFillColorFn(d) {
             return defaultFillColorPalette((d.children ? d : d.parent)[nameProp]);
         }
@@ -63,6 +77,12 @@ define([
 
         resize();
 
+        function setupSvgDimensions(svg) {
+            svg.attr('width', containerWidth)
+                .attr('height', containerHeight)
+                .attr('viewBox', [-0.5 * containerWidth, -0.5 * containerHeight, containerWidth, containerHeight].join(' '))
+        }
+
         function resize() {
             containerWidth = $container.width();
             containerHeight = $container.height();
@@ -72,33 +92,24 @@ define([
             y = d3.scale.sqrt().range([0, radius]);
 
             if(svg) {
-                svg.setSize(containerWidth, containerHeight);
-                svg.setViewBox(-0.5 * containerWidth, -0.5 * containerHeight, containerWidth, containerHeight);
+                setupSvgDimensions(svg);
 
                 centerLabel();
 
                 if(arcEls && arcEls.length) {
                     onClick(prevClicked || arcData[0]);
                 }
-                arcData.forEach(function(dataEl) {
-                    svg.set(el).animate({path: createArc(outerRingAnimateSize)(dataEl)}, 100);
-                });
 
                 hideLabel();
             }
         }
 
-        var svg = Raphael($container[0], containerWidth, containerHeight);
-        svg.setViewBox(-0.5 * containerWidth, -0.5 * containerHeight, containerWidth, containerHeight);
-
-        var partition = d3.layout.partition()
-            .value(function(d) {
-                return d[sizeProp];
-            });
+        var svg = d3.select($container.get(0)).append('svg');
+        setupSvgDimensions(svg);
 
         // calling sort with undefined is not the same as not calling it at all
         if(comparator) {
-            partition.sort(comparator);
+            arcData.sort(comparator);
         }
 
         function createArc(hoverRadius) {
@@ -118,8 +129,7 @@ define([
         }
 
         var prevClicked, prevHovered;
-        var animationTime = 1000;
-        var arcEls = [], arcData = [];
+        var arcEls = [];
         var lastTransition;
 
         redraw(false, animate);
@@ -127,9 +137,6 @@ define([
         function redraw(retainZoom, animate) {
             lastTransition && lastTransition.cancel();
             lastTransition = null;
-            _.each(arcEls, function(arc) {
-                arc.remove();
-            });
 
             if(retainZoom) {
                 if(prevClicked) {
@@ -143,42 +150,34 @@ define([
             }
             x.clamp();
 
-            // on the existing elements
-            arcEls = arcData.map(function(d, idx) {
-                return svg.path(createArc(0)(d))
-                    .attr('fill', fillColorFn(d))
-                    .attr('stroke', strokeColorFn(d))
-                .attr('stroke-width', strokeWidth)
-                    .click(function() {
-                        d !== prevClicked && onClick(arcData[idx]);
-                    }).hover(function() {
-                        mouseover(arcData[idx]);
-                    }, function() {
-                        mouseout(arcData[idx]);
-                });
-            });
+            var arcElsJoin = svg.datum(rawData)
+                .selectAll('path')
+                .data(arcData, key);
 
-            if(animate) {
-                if(arcData.length < 200 && Raphael.svg) {
-                    svg.set(arcEls).attr('opacity', 0).animate({opacity: 1}, animationTime);
-                }
-            }
+            var arcEls = arcElsJoin.enter()
+                .append('path');
+
+            arcElsJoin.exit()
+                .remove();
+
+            arcElsJoin
+                .attr('d', createArc(0))
+                .attr('fill', fillColorFn)
+                .attr('stroke-width', strokeWidth)
+                .attr('stroke', strokeColorFn)
+                .on('click', function(d) {
+                    d !== prevClicked && onClick(d);
+                })
+                .on('mouseover', function(d) {
+                    mouseover(d);
+                })
+                .on('mouseout', function(d) {
+                    mouseout(d);
+                });
+            //TODO reimplement whole Sunburst fade-in using d3
         }
 
         hideLabel();
-
-        function onTick(t, xd, yd, yr) {
-            x.domain(xd(t));
-            y.domain(yd(t)).range(yr(t));
-
-            for(var ii = 0; ii < arcData.length; ++ii) {
-                arcEls[ii].attr('path', createArc(0)(arcData[ii]));
-            }
-
-            if(t === 1) {
-                inTransition = false;
-            }
-        }
 
         function onClick(d) {
             clickCallback(d);
@@ -190,13 +189,6 @@ define([
                 var xd = d3.interpolate(x.domain(), [d.x, d.x + d.dx]),
                     yd = d3.interpolate(y.domain(), [d.y, 1]),
                     yr = d3.interpolate(y.range(), [d.y ? minRadius : 0, radius]);
-
-                if(Raphael.svg) {
-                    lastTransition && lastTransition.cancel();
-                    lastTransition = new Transition(animationTime, onTick);
-                } else {
-                    onTick(1);
-                }
             }
         }
 
