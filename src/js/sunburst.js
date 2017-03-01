@@ -1,10 +1,16 @@
+/*
+ * Copyright 2017 Hewlett Packard Enterprise Development Company, L.P.
+ * Licensed under the MIT License (the "License"); you may not use this file except in compliance with the License.
+ */
+
 define([
-    './transition',
-    'jquery',
     'underscore',
+    'jquery',
+    'd3',
     'Raphael',
-    'd3'
-], function(Transition, $, _, Raphael, d3) {
+    './transition'
+], function(_, $, d3, Raphael, Transition) {
+    'use strict';
 
     return function Sunburst(el, opts) {
         this.i18n = opts.i18n || {};
@@ -15,15 +21,19 @@ define([
         var chartEl = $(el).css('position', 'relative');
         var sizeProp = opts.sizeAttr || 'size';
         var nameProp = opts.nameAttr || 'name';
-        var labelFormatter = opts.labelFormatter || function(d){ return _.escape(d[nameProp]); };
+        var labelFormatter = opts.labelFormatter || function(d) {
+                return _.escape(d[nameProp]);
+            };
         var customClick = opts.onClick || $.noop;
         var hoverAnimation = opts.hoverAnimation || $.noop;
         var outerRingAnimateSize = opts.outerRingAnimateSize || 0;
         var strokeColour = opts.strokeColour || 'white';
         var comparator = opts.comparator;
-        
+
         var width, height, divWidth, radius, minRadius = 70;
-        var colorFn = opts.colorFn || function (d) { return color((d.children ? d : d.parent)[nameProp]); };
+        var colorFn = opts.colorFn || function(d) {
+                return color((d.children ? d : d.parent)[nameProp]);
+            };
 
         var x = d3.scale.linear().range([0, 2 * Math.PI]), y;
 
@@ -37,33 +47,34 @@ define([
 
             y = d3.scale.sqrt().range([0, radius]);
 
-            if (paper) {
+            if(paper) {
                 paper.setSize(divWidth, height);
                 paper.setViewBox(-0.5 * divWidth, -0.5 * height, divWidth, height);
 
                 Raphael.vml && vmlPositionFix();
 
-                if (centerLabel) {
+                if(centerLabel) {
                     centerLabel.css('left', 0.5 * (width - centerLabel.width()))
-                               .css('top', 0.5 * (height - centerLabel.height()));
+                        .css('top', 0.5 * (height - centerLabel.height()));
                 }
 
-                if (arcEls && arcEls.length) {
+                if(arcEls && arcEls.length) {
                     onClick(prevClicked || arcData[0]);
                 }
-                arcData.forEach( function(dataEl){
+                arcData.forEach(function(dataEl) {
                     paper.set(el).animate({path: createArc(outerRingAnimateSize)(dataEl)}, 100);
                 });
 
                 hideCenterLabel();
-
             }
         }
 
         function vmlPositionFix() {
             // Raphael 2.1.0 has issues with setViewBox in IE6/7/8, as a workaround we set a identity transform set
             // each time the view box changes.
-            arcEls.forEach(function(link){link.attr('transform', 't0,0');});
+            arcEls.forEach(function(link) {
+                link.attr('transform', 't0,0');
+            });
         }
 
         var color = d3.scale.category20c();
@@ -72,7 +83,9 @@ define([
         paper.setViewBox(-0.5 * divWidth, -0.5 * height, divWidth, height);
 
         var partition = d3.layout.partition()
-            .value(function(d) { return d[sizeProp]; });
+            .value(function(d) {
+                return d[sizeProp];
+            });
 
         // calling sort with undefined is not the same as not calling it at all
         if(comparator !== undefined) {
@@ -81,10 +94,18 @@ define([
 
         var createArc = function(hoverAnimateSize) {
             return d3.svg.arc()
-                .startAngle(function(d) { return Math.max(0, Math.min(2 * Math.PI, x(d.x))); })
-                .endAngle(function(d) { return Math.max(0, Math.min(2 * Math.PI, x(d.x + d.dx))); })
-                .innerRadius(function(d) { return Math.max(0, y(d.y)); })
-                .outerRadius(function(d) { return Math.max(0, y(d.y + d.dy)) + hoverAnimateSize; });
+                .startAngle(function(d) {
+                    return Math.max(0, Math.min(2 * Math.PI, x(d.x)));
+                })
+                .endAngle(function(d) {
+                    return Math.max(0, Math.min(2 * Math.PI, x(d.x + d.dx)));
+                })
+                .innerRadius(function(d) {
+                    return Math.max(0, y(d.y));
+                })
+                .outerRadius(function(d) {
+                    return Math.max(0, y(d.y + d.dy)) + hoverAnimateSize;
+                });
         };
 
         var prevClicked, prevHovered;
@@ -97,47 +118,58 @@ define([
         function redraw(json, retainZoom, animate) {
             lastTransition && lastTransition.cancel();
             lastTransition = null;
-            _.each(arcEls, function(arc){ arc.remove(); });
+            _.each(arcEls, function(arc) {
+                arc.remove();
+            });
 
             arcData = partition.nodes(json);
 
-            if (!retainZoom) {
-                x.domain([0,1]);
-                y.domain([0,1]).range([0, radius]);
-            } else if (prevClicked) {
+            if(!retainZoom) {
+                x.domain([0, 1]);
+                y.domain([0, 1]).range([0, radius]);
+            } else if(prevClicked) {
                 // should zoom onto the current el
                 x.domain([prevClicked.x, prevClicked.x + prevClicked.dx]);
                 y.domain([prevClicked.y, 1]).range([prevClicked.y ? minRadius : 0, radius]);
             }
 
             // on the existing elements
-            arcEls = arcData.map(function(d, idx){
-                return paper.path(createArc(0)(d)).attr('fill', colorFn(d)).attr('stroke', strokeColour).click(function(){
+            arcEls = arcData.map(function(d, idx) {
+                return paper.path(createArc(0)(d)).attr('fill', colorFn(d)).attr('stroke', strokeColour).click(function() {
                     d !== prevClicked && onClick(arcData[idx]);
-                }).hover(function(){
+                }).hover(function() {
                     hover(arcData[idx]);
                 }, function() {
                     mouseout(arcData[idx]);
                 });
             });
 
-            if (animate) {
-                if (arcData.length < 200 && Raphael.svg) {
+            if(animate) {
+                if(arcData.length < 200 && Raphael.svg) {
                     paper.set(arcEls).attr('opacity', 0).animate({opacity: 1}, animationTime);
                 }
             }
-
         }
 
         hideCenterLabel();
 
-        var centerLabel;
+        function onTick(t, xd, yd, yr) {
+            x.domain(xd(t));
+            y.domain(yd(t)).range(yr(t));
+
+            for(var ii = 0; ii < arcData.length; ++ii) {
+                arcEls[ii].attr('path', createArc(0)(arcData[ii]));
+            }
+
+            if(t === 1) {
+                inTransition = false;
+            }
+        }
 
         function onClick(d) {
-
             customClick(d);
-    
-            if (animate) {
+
+            if(animate) {
                 prevClicked = d;
                 inTransition = true;
 
@@ -145,31 +177,19 @@ define([
                     yd = d3.interpolate(y.domain(), [d.y, 1]),
                     yr = d3.interpolate(y.range(), [d.y ? minRadius : 0, radius]);
 
-                if (Raphael.svg) {
+                if(Raphael.svg) {
                     lastTransition && lastTransition.cancel();
                     lastTransition = new Transition(animationTime, onTick);
-                }
-                else {
+                } else {
                     onTick(1);
-                }
-
-                function onTick(t) {
-                    x.domain(xd(t));
-                    y.domain(yd(t)).range(yr(t));
-
-                    for (var ii = 0, max = arcData.length; ii < max; ++ii) {
-                        arcEls[ii].attr('path', createArc(0)(arcData[ii]));
-                    }
-
-                    if (t === 1) {
-                        inTransition = false;
-                    }
                 }
             }
         }
 
+        var centerLabel;
+
         function hover(d) {
-            if (prevHovered === d) {
+            if(prevHovered === d) {
                 return;
             }
 
@@ -177,7 +197,7 @@ define([
 
             showCenterLabel(d);
 
-            if (inTransition) {
+            if(inTransition) {
                 return;
             }
 
@@ -187,19 +207,18 @@ define([
         function mouseout(d) {
             prevHovered = null;
 
-            if (inTransition) {
+            if(inTransition) {
                 return;
             }
 
             hoverAnimation(d, createArc, 0, arcEls, arcData, paper);
         }
 
-
         function showCenterLabel(d) {
             var innerHTML = labelFormatter(d, prevClicked);
 
-            if (!centerLabel) {
-                centerLabel = $('<div>'+innerHTML+'</div>').css({
+            if(!centerLabel) {
+                centerLabel = $('<div>' + innerHTML + '</div>').css({
                     position: 'absolute',
                     'text-align': 'center',
                     'text-overflow': 'ellipsis',
@@ -211,12 +230,12 @@ define([
                 centerLabel.html(innerHTML);
             }
 
-            centerLabel.css('left',0.5 * (chartEl.width() - centerLabel.width()))
-                       .css('top', 0.5 * (chartEl.height() - centerLabel.height()));
+            centerLabel.css('left', 0.5 * (chartEl.width() - centerLabel.width()))
+                .css('top', 0.5 * (chartEl.height() - centerLabel.height()));
         }
 
         function hideCenterLabel() {
-            if (centerLabel) {
+            if(centerLabel) {
                 centerLabel.remove();
                 centerLabel = null;
             }
