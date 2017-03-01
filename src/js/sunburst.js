@@ -67,15 +67,13 @@ define([
             containerWidth = $container.width();
             containerHeight = $container.height();
 
-            radius = Math.min(containerWidth, containerHeight) / 2 - outerRingAnimateSize;
+            radius = 0.5 * Math.min(containerWidth, containerHeight) - outerRingAnimateSize;
 
             y = d3.scale.sqrt().range([0, radius]);
 
             if(svg) {
                 svg.setSize(containerWidth, containerHeight);
                 svg.setViewBox(-0.5 * containerWidth, -0.5 * containerHeight, containerWidth, containerHeight);
-
-                Raphael.vml && vmlPositionFix();
 
                 centerLabel();
 
@@ -90,14 +88,6 @@ define([
             }
         }
 
-        function vmlPositionFix() {
-            // Raphael 2.1.0 has issues with setViewBox in IE6/7/8, as a workaround we set a identity transform set
-            // each time the view box changes.
-            arcEls.forEach(function(link) {
-                link.attr('transform', 't0,0');
-            });
-        }
-
         var svg = Raphael($container[0], containerWidth, containerHeight);
         svg.setViewBox(-0.5 * containerWidth, -0.5 * containerHeight, containerWidth, containerHeight);
 
@@ -107,11 +97,11 @@ define([
             });
 
         // calling sort with undefined is not the same as not calling it at all
-        if(comparator !== undefined) {
+        if(comparator) {
             partition.sort(comparator);
         }
 
-        var createArc = function(hoverRadius) {
+        function createArc(hoverRadius) {
             return d3.svg.arc()
                 .startAngle(function(d) {
                     return x(d.x);
@@ -125,7 +115,7 @@ define([
                 .outerRadius(function(d) {
                     return Math.max(0, y(d.y + d.dy)) + (hoverRadius || 0);
                 });
-        };
+        }
 
         var prevClicked, prevHovered;
         var animationTime = 1000;
@@ -141,15 +131,15 @@ define([
                 arc.remove();
             });
 
-            arcData = partition.nodes(rawData);
-
-            if(!retainZoom) {
+            if(retainZoom) {
+                if(prevClicked) {
+                    // should zoom onto the current el
+                    x.domain([prevClicked.x, prevClicked.x + prevClicked.dx]);
+                    y.domain([prevClicked.y, 1]).range([prevClicked.y ? minRadius : 0, radius]);
+                }
+            } else {
                 x.domain([0, 1]);
                 y.domain([0, 1]).range([0, radius]);
-            } else if(prevClicked) {
-                // should zoom onto the current el
-                x.domain([prevClicked.x, prevClicked.x + prevClicked.dx]);
-                y.domain([prevClicked.y, 1]).range([prevClicked.y ? minRadius : 0, radius]);
             }
             x.clamp();
 
@@ -158,14 +148,14 @@ define([
                 return svg.path(createArc(0)(d))
                     .attr('fill', fillColorFn(d))
                     .attr('stroke', strokeColorFn(d))
-                    .attr('stroke-width', strokeWidth)
+                .attr('stroke-width', strokeWidth)
                     .click(function() {
                         d !== prevClicked && onClick(arcData[idx]);
                     }).hover(function() {
                         mouseover(arcData[idx]);
                     }, function() {
                         mouseout(arcData[idx]);
-                    });
+                });
             });
 
             if(animate) {
@@ -243,15 +233,13 @@ define([
                 if($label) {
                     $label.html(innerHTML);
                 } else {
-                    $label = $('<div>' + innerHTML + '</div>')
-                        .css({
-                            position: 'absolute',
-                            'text-align': 'center',
-                            'text-overflow': 'ellipsis',
-                            'pointer-events': 'none',
-                            color: 'black'
-                        })
-                        .appendTo($container);
+                    $label = $('<div>' + innerHTML + '</div>').css({
+                        position: 'absolute',
+                        'text-align': 'center',
+                        'text-overflow': 'ellipsis',
+                        'pointer-events': 'none',
+                        color: 'black'
+                    }).appendTo($container);
                 }
 
                 centerLabel();
