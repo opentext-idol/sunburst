@@ -6,7 +6,7 @@
     "Wojciech Kaluza <wojciech.kaluza@hpe.com>",
     "Rosie Taylor <rosie.taylor@hpe.com>"
   ],
-  "description": "Jquery plugin for generating a sunburst visualisation",
+  "description": "Two-tier Sunburst visualisation",
   "keywords": [
     "sunburst",
     "visualisations",

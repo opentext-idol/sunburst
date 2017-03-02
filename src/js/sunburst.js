@@ -19,19 +19,20 @@ define([
     }
 
     return function Sunburst(el, options) {
-        this.resize = resize;
-        this.redraw = redraw;
-        var rawData = options.data;
-        var inTransition = false;
-        var animate = options.animate === true;
         var $container = $(el).css('position', 'relative');
         var sizeProp = options.sizeAttr || 'size';
         var nameProp = options.nameAttr || 'name';
-
-        var arcData = d3.layout.partition()
+        var partition = d3.layout.partition()
             .value(function(d) {
                 return d[sizeProp];
-            }).nodes(rawData);
+            });
+
+        this.resize = resize;
+        this.redraw = redraw;
+        var rawData = options.data;
+        var arcData = partition.nodes(rawData);
+        var inTransition = false;
+        var animate = options.animate === true;
 
         function defaultLabelFormatter(d) {
             return _.escape(d[nameProp]);
@@ -41,6 +42,7 @@ define([
 
         var clickCallback = options.clickCallback || _.noop;
         var hoverCallback = options.hoverCallback || _.noop;
+
         var outerRingAnimateSize = options.outerRingAnimateSize || 0;
         var strokeWidth = options.strokeWidth || '1px';
         var strokeColor = options.strokeColor || 'black';
@@ -109,7 +111,7 @@ define([
 
         // calling sort with undefined is not the same as not calling it at all
         if(comparator) {
-            arcData.sort(comparator);
+            partition.sort(comparator);
         }
 
         function createArc(hoverRadius) {
@@ -130,13 +132,21 @@ define([
 
         var prevClicked, prevHovered;
         var arcEls = [];
+        var arcElsJoin;
         var lastTransition;
 
-        redraw(false, animate);
+        redraw(rawData, false, animate);
 
-        function redraw(retainZoom, animate) {
+        function redraw(json, retainZoom, animate) {
+            //TODO reimplement whole Sunburst fade-in using d3
+
             lastTransition && lastTransition.cancel();
             lastTransition = null;
+
+            if(json) {
+                rawData = json;
+                arcData = partition.nodes(rawData);
+            }
 
             if(retainZoom) {
                 if(prevClicked) {
@@ -150,17 +160,14 @@ define([
             }
             x.clamp();
 
-            var arcElsJoin = svg.datum(rawData)
+            arcElsJoin = svg.datum(rawData)
                 .selectAll('path')
                 .data(arcData, key);
 
-            var arcEls = arcElsJoin.enter()
+            arcElsJoin.enter()
                 .append('path');
 
-            arcElsJoin.exit()
-                .remove();
-
-            arcElsJoin
+            arcEls = arcElsJoin
                 .attr('d', createArc(0))
                 .attr('fill', fillColorFn)
                 .attr('stroke-width', strokeWidth)
@@ -168,13 +175,11 @@ define([
                 .on('click', function(d) {
                     d !== prevClicked && onClick(d);
                 })
-                .on('mouseover', function(d) {
-                    mouseover(d);
-                })
-                .on('mouseout', function(d) {
-                    mouseout(d);
-                });
-            //TODO reimplement whole Sunburst fade-in using d3
+                .on('mouseover', mouseover)
+                .on('mouseout', mouseout);
+
+            arcElsJoin.exit()
+                .remove();
         }
 
         hideLabel();
