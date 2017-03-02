@@ -3,9 +3,10 @@
   "authors": [
     "Tung Jin Chew <tung-jin.chew@hpe.com>",
     "Will Byrne <will.byrne@hpe.com>",
+    "Wojciech Kaluza <wojciech.kaluza@hpe.com>",
     "Rosie Taylor <rosie.taylor@hpe.com>"
   ],
-  "description": "Jquery plugin for generating a sunburst visualisation",
+  "description": "Two-tier Sunburst visualisation",
   "keywords": [
     "sunburst",
     "visualisations",
@@ -19,7 +20,6 @@
   "dependencies": {
     "d3": "3.3.8",
     "jquery": "1.10.2",
-    "raphael": "2.2.0",
     "underscore": "1.8.3"
   }
 }
