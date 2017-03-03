@@ -4,7 +4,7 @@
  */
 
 define([
-    'src/js/sunburst'
+    '../../src/js/sunburst'
 ], function(Sunburst) {
     'use strict';
 

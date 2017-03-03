@@ -4,8 +4,13 @@
 *.iws
 *.iml
 
-#Node Modules
+# Node Modules
 node_modules
 
 # Bower
 bower_components/
+
+# Dev
+/target/
+/.grunt/
+/spec-runner.html
