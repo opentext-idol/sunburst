@@ -52,8 +52,7 @@ define([
             // Generate unique key for 2nd tier sectors
             return (d.parent && d.parent.parent
                     ? d.parent[nameProp] + '/'
-                    : '') +
-                d[nameProp];
+                    : '') + d[nameProp];
         }
 
         var key = processOptionalFunction(options.key, defaultKey);
@@ -82,7 +81,7 @@ define([
         function setupSvgDimensions(svg) {
             svg.attr('width', containerWidth)
                 .attr('height', containerHeight)
-                .attr('viewBox', [-0.5 * containerWidth, -0.5 * containerHeight, containerWidth, containerHeight].join(' '))
+                .attr('viewBox', [-0.5 * containerWidth, -0.5 * containerHeight, containerWidth, containerHeight].join(' '));
         }
 
         function resize() {
@@ -109,11 +108,6 @@ define([
         var svg = d3.select($container.get(0)).append('svg');
         setupSvgDimensions(svg);
 
-        // calling sort with undefined is not the same as not calling it at all
-        if(comparator) {
-            partition.sort(comparator);
-        }
-
         function createArc(hoverRadius) {
             return d3.svg.arc()
                 .startAngle(function(d) {
@@ -132,13 +126,19 @@ define([
 
         var prevClicked, prevHovered;
         var arcEls = [];
-        var arcElsJoin;
+        var join;
         var lastTransition;
+        var finishedInitialTransition = false;
 
-        redraw(rawData, false, animate);
+        redraw(rawData, false);
 
-        function redraw(json, retainZoom, animate) {
+        function redraw(json, retainZoom) {
             //TODO reimplement whole Sunburst fade-in using d3
+
+            // calling sort with undefined is not the same as not calling it at all
+            if(comparator) {
+                partition.sort(comparator);
+            }
 
             lastTransition && lastTransition.cancel();
             lastTransition = null;
@@ -160,26 +160,128 @@ define([
             }
             x.clamp();
 
-            arcElsJoin = svg.datum(rawData)
-                .selectAll('path')
-                .data(arcData, key);
+            if((finishedInitialTransition || !animate) && join) {
+                join = join.data(arcData, key);
 
-            arcElsJoin.enter()
-                .append('path');
+                if(animate) {
+                    join
+                        .attr('fill', fillColorFn)
+                        .attr('stroke-width', strokeWidth)
+                        .attr('stroke', strokeColorFn)
+                        .transition()
+                        .duration(300)
+                        .attrTween('d', function(d) {
+                            this._current = this._current || _.pick(d, 'x', 'y', 'dx', 'dy');
+                            const interpolate = d3.interpolate(
+                                this._current,
+                                _.pick(d, 'x', 'y', 'dx', 'dy')
+                            );
+                            this._current = interpolate(0);
 
-            arcEls = arcElsJoin
-                .attr('d', createArc(0))
-                .attr('fill', fillColorFn)
-                .attr('stroke-width', strokeWidth)
-                .attr('stroke', strokeColorFn)
+                            return _.compose(createArc(0), interpolate);
+                        });
+                } else {
+                    join
+                        .attr('fill', fillColorFn)
+                        .attr('stroke-width', strokeWidth)
+                        .attr('stroke', strokeColorFn)
+                        .attr('d', createArc(0));
+                }
+
+                if(animate) {
+                    join.enter()
+                        .insert('path')
+                        .style('opacity', 0)
+                        .attr('fill', fillColorFn)
+                        .attr('stroke-width', strokeWidth)
+                        .attr('stroke', strokeColorFn)
+                        .transition()
+                        .duration(300)
+                        .style('opacity', 1)
+                        .attrTween('d', function(d) {
+                            this._current = _.pick(d, 'x', 'y', 'dx', 'dy');
+                            const interpolate = d3.interpolate(
+                                _.extend(_.pick(d, 'y', 'dy'), {x: d.x + d.dx, dx: 1.0e-6}),
+                                this._current
+                            );
+                            this._current = interpolate(0);
+
+                            return _.compose(createArc(0), interpolate);
+                        });
+                } else {
+                    join.enter()
+                        .insert('path')
+                        .attr('fill', fillColorFn)
+                        .attr('stroke-width', strokeWidth)
+                        .attr('stroke', strokeColorFn)
+                        .attr('d', createArc(0));
+                }
+
+                if(animate) {
+                    join.exit().transition()
+                        .duration(300)
+                        .style('opacity', 0)
+                        .attrTween('d', function(d) {
+                            const interpolate = d3.interpolate(
+                                _.pick(d, 'x', 'y', 'dx', 'dy'),
+                                _.extend(this._current, {x: d.x + d.dx, dx: 1.0e-6})
+                            );
+
+                            return _.compose(createArc(0), interpolate);
+                        })
+                        .remove();
+                } else {
+                    join.exit()
+                        .remove();
+                }
+            } else {
+                join = svg
+                    .selectAll('path').data(arcData, key);
+
+                if(animate) {
+                    let n = 0;
+                    finishedInitialTransition = false;
+                    join.enter()
+                        .append('path')
+                        .attr('fill', fillColorFn)
+                        .attr('stroke-width', strokeWidth)
+                        .attr('stroke', strokeColorFn)
+                        .transition()
+                        .duration(500)
+                        .attrTween('d', function(d) {
+                            this._current = _.pick(d, 'x', 'y', 'dx', 'dy');
+                            const interpolate = d3.interpolate(
+                                {x: 1.0e-6, dx: 1.0e-6},
+                                this._current
+                            );
+                            this._current = interpolate(0);
+
+                            return _.compose(createArc(0), interpolate);
+                        })
+                        .each(function() {
+                            ++n;
+                        })
+                        .each('end', function() {
+                            if(!--n) {
+                                finishedInitialTransition = true
+                            }
+                        });
+                } else {
+                    join.enter()
+                        .append('path')
+                        .attr('fill', fillColorFn)
+                        .attr('stroke-width', strokeWidth)
+                        .attr('stroke', strokeColorFn)
+                        .attr('d', createArc(0));
+                }
+            }
+
+            join
                 .on('click', function(d) {
                     d !== prevClicked && onClick(d);
                 })
                 .on('mouseover', mouseover)
                 .on('mouseout', mouseout);
-
-            arcElsJoin.exit()
-                .remove();
         }
 
         hideLabel();
