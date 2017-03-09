@@ -108,11 +108,6 @@ define([
         var svg = d3.select($container.get(0)).append('svg');
         setupSvgDimensions(svg);
 
-        // calling sort with undefined is not the same as not calling it at all
-        if(comparator) {
-            partition.sort(comparator);
-        }
-
         function createArc(hoverRadius) {
             return d3.svg.arc()
                 .startAngle(function(d) {
@@ -139,6 +134,11 @@ define([
 
         function redraw(json, retainZoom) {
             //TODO reimplement whole Sunburst fade-in using d3
+
+            // calling sort with undefined is not the same as not calling it at all
+            if(comparator) {
+                partition.sort(comparator);
+            }
 
             lastTransition && lastTransition.cancel();
             lastTransition = null;
@@ -259,7 +259,7 @@ define([
                             return _.compose(createArc(0), interpolate);
                         })
                         .each(function() {
-                            ++n
+                            ++n;
                         })
                         .each('end', function() {
                             if(!--n) {
