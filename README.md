@@ -1,4 +1,4 @@
-# HPE IDOL Sunburst
+# Micro Focus IDOL Sunburst
 
 A JQuery plugin for displaying information in a topic map.
 
@@ -51,6 +51,7 @@ requirejs(['sunburst/js/sunburst', 'd3', 'underscore'], function(Sunburst, d3, _
 Yes
 
 ## License
-Copyright 2016-17 Hewlett Packard Enterprise Development LP
+Copyright 2016-2017 Hewlett Packard Enterprise Development LP
+Copyright 2016-2018 Micro Focus International plc.
 
 Licensed under the MIT License (the "License"); you may not use this project except in compliance with the License.
