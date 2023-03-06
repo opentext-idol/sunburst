@@ -1,4 +1,4 @@
-# Micro Focus IDOL Sunburst
+# OpenText IDOL Sunburst
 
 A JQuery plugin for displaying information in a topic map.
 
@@ -52,6 +52,6 @@ Yes
 
 ## License
 
-(c) Copyright 2016-2018 Micro Focus or one of its affiliates.
+(c) Copyright 2016-2018 OpenText or one of its affiliates.
 
 Licensed under the MIT License (the "License"); you may not use this project except in compliance with the License.

@@ -1,16 +1,16 @@
 {
   "name": "hp-autonomy-sunburst",
   "authors": [
-    "Tung Jin Chew <tung-jin.chew@microfocus.com>",
-    "Will Byrne <will.byrne@hpe.com>",
-    "Wojciech Kaluza <wojciech.kaluza@hpe.com>",
-    "Rosie Taylor <rosie.taylor@hpe.com>"
+    "Tung Jin Chew",
+    "Will Byrne",
+    "Wojciech Kaluza",
+    "Rosie Taylor"
   ],
   "description": "Two-tier Sunburst visualisation",
   "keywords": [
     "sunburst",
     "visualisations",
-    "micro focus"
+    "opentext"
   ],
   "license": "MIT",
   "ignore": [
