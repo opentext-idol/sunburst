@@ -1,6 +1,6 @@
 {
   "name": "hp-autonomy-sunburst",
-  "repository": "https://github.com/microfocus-idol/sunburst",
+  "repository": "https://github.com/opentext-idol/sunburst",
   "private": true,
   "license": "MIT",
   "devDependencies": {
