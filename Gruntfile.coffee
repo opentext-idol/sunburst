@@ -5,7 +5,6 @@ module.exports = (grunt) ->
 
   specs = 'target/test/spec/**/*.js'
   source = 'src/js/**/*.js'
-  sourceBabel = 'target/src/**/*.js'
 
   grunt.initConfig
     pkg: grunt.file.readJSON 'package.json'
@@ -15,21 +14,6 @@ module.exports = (grunt) ->
       '.grunt'
       jasmineSpecRunner
     ]
-    babel:
-      options:
-        plugins: ['transform-es2015-block-scoping']
-      transform:
-        files: [{
-          expand: true
-          src: ['src/**/*.js']
-          dest: 'target'
-          ext: '.js'
-        }, {
-          expand: true
-          src: ['test/**/*.js']
-          dest: 'target'
-          ext: '.js'
-        }]
     connect:
       server:
         options:
@@ -37,7 +21,7 @@ module.exports = (grunt) ->
           useAvailablePort: true
     jasmine:
       test:
-        src: sourceBabel
+        src: source
         options:
           keepRunner: false
           outfile: jasmineSpecRunner
@@ -79,23 +63,13 @@ module.exports = (grunt) ->
           beforeEach: false
           afterEach: false
           jasmine: false
-    watch:
-      buildTest:
-        files: [specs, source]
-        tasks: ['jasmine:test:build']
-      test:
-        files: [specs, source]
-        tasks: ['jasmine:test']
 
 
   grunt.loadNpmTasks 'grunt-contrib-jshint'
   grunt.loadNpmTasks 'grunt-contrib-connect'
   grunt.loadNpmTasks 'grunt-contrib-clean'
-  grunt.loadNpmTasks 'grunt-contrib-watch'
   grunt.loadNpmTasks 'grunt-contrib-jasmine'
-  grunt.loadNpmTasks 'grunt-babel'
 
   grunt.registerTask 'lint', ['jshint']
-  grunt.registerTask 'test', ['babel:transform', 'jasmine:test']
-  grunt.registerTask 'watch-test', ['jasmine:test', 'watch:test']
-  grunt.registerTask 'browser-test', ['jasmine:test:build', 'connect:server', 'watch:buildTest']
+  grunt.registerTask 'test', ['jasmine:test']
+  grunt.registerTask 'browser-test', ['jasmine:test:build', 'connect:server:keepalive']

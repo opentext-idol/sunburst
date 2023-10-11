@@ -15,10 +15,10 @@
 require.config({
     baseUrl: '.',
     paths: {
-        d3: 'bower_components/d3/d3',
-        jquery: 'bower_components/jquery/jquery',
-        Raphael: 'bower_components/raphael/raphael',
-        underscore: 'bower_components/underscore/underscore'
+        d3: 'node_modules/d3/d3',
+        jquery: 'node_modules/jquery/dist/jquery',
+        Raphael: 'node_modules/raphael/raphael',
+        underscore: 'node_modules/underscore/underscore'
     },
     shim: {
         d3: {
