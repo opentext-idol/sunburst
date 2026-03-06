@@ -1,14 +1,14 @@
 {
   "name": "hp-autonomy-sunburst",
-  "version": "2.2.0",
+  "version": "2.2.1",
   "repository": "https://github.com/opentext-idol/sunburst",
   "private": true,
   "license": "MIT",
   "dependencies": {
-    "d3": "3.5.17",
-    "jquery": "3.7.1",
-    "raphael": "2.3.0",
-    "underscore": "1.13.6"
+    "d3": "^3.5.17",
+    "jquery": "^3.7.1",
+    "raphael": "^2.3.0",
+    "underscore": "^1.13.6"
   },
   "devDependencies": {
     "coffeescript": "^2.5.1",
