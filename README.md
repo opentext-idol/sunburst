@@ -10,34 +10,35 @@ This repo uses git-flow. develop is the development branch. master is the last k
 ## Example
     
 ```js
-// assumes sunburst is aliased to the library location in a require.config statement
-requirejs(['sunburst/js/sunburst', 'd3', 'underscore'], function(Sunburst, d3, _) {
-    let sunburst = new Sunburst(selector, {
-        animate: false, // set to true to turn on animations
-        clickCallback: _.noop, // function called on segment click
-        comparator: d3.ascending, // d3 sort function - if undefined no sorting will be performed
-        fillColorFn: function(d){}, // function for generating colors for d. Based on d3's category20c scale
-        labelFormatter: function(d) {return _.escape(d[nameProp])}, // function for generating segment labels
-        nameAttr: 'name', // attribute of each piece of data denoting the name
-        sizeAttr: 'size', // attribute of each piece of data denoting the size
-        strokeColor: 'black', // border color for segments
-        strokeWidth: '1px', // border width for segments
-        // data array for sunburst
-        data: [{
-            name: 'Segment 1',
-            size: 3
-        }, {
-            name: 'Segment 2',
-            size: 5
-        }]
-    });
-    
-    // resize the sunburst
-    sunburst.resize();
-    
-    // redraw the sunburst with new data
-    sunburst.redraw(data, false);
+const Sunburst = require('hp-autonomy-sunburst/js/sunburst');
+const d3 = require('d3');
+const _ = require('underscore');
+
+let sunburst = new Sunburst(selector, {
+    animate: false, // set to true to turn on animations
+    clickCallback: _.noop, // function called on segment click
+    comparator: d3.ascending, // d3 sort function - if undefined no sorting will be performed
+    fillColorFn: function(d){}, // function for generating colors for d. Based on d3's category20c scale
+    labelFormatter: function(d) {return _.escape(d[nameProp])}, // function for generating segment labels
+    nameAttr: 'name', // attribute of each piece of data denoting the name
+    sizeAttr: 'size', // attribute of each piece of data denoting the size
+    strokeColor: 'black', // border color for segments
+    strokeWidth: '1px', // border width for segments
+    // data array for sunburst
+    data: [{
+        name: 'Segment 1',
+        size: 3
+    }, {
+        name: 'Segment 2',
+        size: 5
+    }]
 });
+
+// resize the sunburst
+sunburst.resize();
+
+// redraw the sunburst with new data
+sunburst.redraw(data, false);
 ```
 
 ## Grunt tasks
